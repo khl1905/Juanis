@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Progreso de Pagos Semanales ($500)</title>
   <style>
     body {
@@ -11,30 +11,164 @@
       padding: 20px;
       text-align: center;
     }
-
-    h2 {
-      color: #00ffff;
-      text-shadow: 0 0 5px #00ffffaa;
-    }
-
+    h2 { color: #00ffff; text-shadow: 0 0 5px #00ffffaa; }
     .barra {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 15px;
-      margin-top: 30px;
+      display: flex; justify-content: center; flex-wrap: wrap; gap: 15px; margin-top: 30px;
+    }
+    .item { display: flex; flex-direction: column; align-items: center; transition: transform 0.3s; }
+    .item:hover { transform: scale(1.1); }
+    .cuota {
+      width: 50px; height: 50px; text-align: center; line-height: 50px; border-radius: 12px;
+      font-weight: bold; font-size: 1.1em; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 2px solid #333;
+    }
+    .dado { background-color: #00cc66; color: #000; }
+    .por-dar { background-color: yellow; color: #000; }
+    .futuro { background-color: #bbb; color: #222; }
+    .fecha { font-size: 0.75em; color: #ccc; margin-top: 5px; }
+    .leyenda { margin-top: 40px; }
+    .cuadro { display: inline-block; width: 20px; height: 20px; margin-right: 5px; border: 1px solid #999; }
+    .verde { background-color: #00cc66; } .amarillo { background-color: yellow; } .gris { background-color: #bbb; }
+    .progreso-total {
+      width: 100%; max-width: 400px; margin: 40px auto 10px; background-color: #222; border-radius: 20px;
+      overflow: hidden; box-shadow: 0 0 15px #00ffff88; height: 30px; position: relative;
+    }
+    .progreso-barra {
+      height: 100%; background: linear-gradient(270deg, #00ccff, #00ffaa, #00ccff); background-size: 600% 100%;
+      animation: mover 5s linear infinite; text-align: center; line-height: 30px; font-weight: bold; color: #000;
+      transition: width 1s ease; box-shadow: inset 0 0 5px #00000088; font-size: 0.95em; text-shadow: 0 0 3px #fff;
+    }
+    .completado { background: linear-gradient(to right, #00ff88, #00cc66); animation: none !important; color: #000; text-shadow: 0 0 5px #ffffffaa; }
+    @keyframes mover { 0% { background-position: 0% 50%; } 100% { background-position: 600% 50%; } }
+  </style>
+</head>
+<body>
+
+  <h2>Progreso de Pagos Semanales ($500)</h2>
+
+  <div class="barra" id="barraPagos"></div>
+
+  <div class="progreso-total">
+    <div class="progreso-barra" id="barraTotal">0%</div>
+  </div>
+
+  <p id="textoDetalle" style="color: #ccc; font-size: 0.9em;"></p>
+
+  <div class="leyenda">
+    <p><span class="cuadro verde"></span> Pagado</p>
+    <p><span class="cuadro amarillo"></span> Siguiente pago</p>
+    <p><span class="cuadro gris"></span> Restantes</p>
+  </div>
+
+  <script>
+    const barra = document.getElementById("barraPagos");
+    const barraTotal = document.getElementById("barraTotal");
+    const textoDetalle = document.getElementById("textoDetalle");
+
+    // Utilidad: fechas en LOCAL (año, mesIndex, día)
+    const d = (y, mIndex, day) => new Date(y, mIndex, day);
+
+    // Hitos: 22/ago/2025 = 0%, 29/ago = 20%, y +20% cada viernes hasta 100%
+    const hitos = [
+      { fecha: d(2025, 7, 22), porcentaje: 0 },   // Vie 22 Ago 2025
+      { fecha: d(2025, 7, 29), porcentaje: 20 },  // Vie 29 Ago 2025
+      { fecha: d(2025, 8, 5),  porcentaje: 40 },  // Vie 05 Sep 2025
+      { fecha: d(2025, 8, 12), porcentaje: 60 },  // Vie 12 Sep 2025
+      { fecha: d(2025, 8, 19), porcentaje: 80 },  // Vie 19 Sep 2025
+      { fecha: d(2025, 8, 26), porcentaje: 100 }, // Vie 26 Sep 2025
+    ];
+
+    function lanzarConfeti() {
+      const duration = 2000, end = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+      const interval = setInterval(() => {
+        const left = end - Date.now();
+        if (left <= 0) return clearInterval(interval);
+        const count = 50 * (left / duration);
+        confetti({ ...defaults, particleCount: count, origin: { x: Math.random(), y: Math.random() * 0.5 } });
+      }, 250);
     }
 
-    .item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      transition: transform 0.3s;
+    function crearBarra() {
+      const hoy = new Date();
+      barra.innerHTML = '';
+
+      // Dibujar solo los pagos (excluye el 0% del 22)
+      let siguienteAsignado = false;
+      hitos.slice(1).forEach((hito, i) => {
+        const item = document.createElement("div");
+        item.classList.add("item");
+
+        const pago = document.createElement("div");
+        pago.textContent = i + 1;
+        pago.classList.add("cuota");
+
+        const hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        const pagoSinHora = new Date(hito.fecha.getFullYear(), hito.fecha.getMonth(), hito.fecha.getDate());
+
+        if (hoySinHora > pagoSinHora) {
+          pago.classList.add("dado");
+        } else if (!siguienteAsignado && hoySinHora <= pagoSinHora) {
+          pago.classList.add("por-dar");
+          siguienteAsignado = true;
+        } else {
+          pago.classList.add("futuro");
+        }
+
+        const label = document.createElement("div");
+        label.classList.add("fecha");
+        label.textContent = hito.fecha.toLocaleDateString("es-MX", {
+          weekday: "short", day: "2-digit", month: "short", year: "2-digit"
+        });
+
+        item.appendChild(pago);
+        item.appendChild(label);
+        barra.appendChild(item);
+      });
+
+      // Interpolación entre hitos para porcentaje minuto a minuto
+      let porcentaje = 0;
+      if (hoy <= hitos[0].fecha) {
+        porcentaje = 0;
+      } else if (hoy >= hitos[hitos.length - 1].fecha) {
+        porcentaje = 100;
+      } else {
+        for (let i = 0; i < hitos.length - 1; i++) {
+          const a = hitos[i], b = hitos[i + 1];
+          if (hoy >= b.fecha) {
+            porcentaje = b.porcentaje; // ya pasó este hito
+          } else if (hoy >= a.fecha && hoy < b.fecha) {
+            const totalMs = b.fecha - a.fecha;
+            const transcurridoMs = hoy - a.fecha;
+            const factor = transcurridoMs / totalMs;
+            porcentaje = a.porcentaje + factor * (b.porcentaje - a.porcentaje);
+            break;
+          }
+        }
+      }
+
+      porcentaje = Math.min(Math.max(porcentaje, 0), 100);
+
+      barraTotal.style.width = `${porcentaje}%`;
+      barraTotal.textContent = `${porcentaje.toFixed(1)}%`;
+      textoDetalle.textContent = `Avance: ${porcentaje.toFixed(1)}% del plan`;
+
+      if (porcentaje >= 100) {
+        if (!barraTotal.classList.contains("completado")) lanzarConfeti();
+        barraTotal.classList.add("completado");
+        barraTotal.textContent = "✅ ¡Completado!";
+        textoDetalle.textContent = `Todos los pagos fueron completados`;
+      } else {
+        barraTotal.classList.remove("completado");
+      }
     }
 
-    .item:hover {
-      transform: scale(1.1);
-    }
+    crearBarra();
+    setInterval(crearBarra, 60000); // Actualiza cada minuto
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</body>
+</html>    }
 
     .cuota {
       width: 50px;
